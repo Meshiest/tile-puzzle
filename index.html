@@ -624,6 +624,7 @@
                       window.__dragTileIdx = idx;
                     }}
                     onTouchEnd=${e => {
+                      e.preventDefault();
                       const now = Date.now();
                       const last = lastTapRef.current[idx] || 0;
                       if (now - last < 350) {
