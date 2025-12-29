@@ -636,6 +636,14 @@
                         newTiles[idx],
                         newTiles[fromIdx],
                       ];
+                      // Update id and pos for all tiles
+                      for (let i = 0; i < newTiles.length; ++i) {
+                        newTiles[i] = {
+                          ...newTiles[i],
+                          id: i,
+                          pos: [i % width, Math.floor(i / width)],
+                        };
+                      }
                       setTiles(newTiles);
                     }}
                     onTouchStart=${e => {
@@ -669,6 +677,14 @@
                         newTiles[toIdx],
                         newTiles[fromIdx],
                       ];
+                      // Update id and pos for all tiles
+                      for (let i = 0; i < newTiles.length; ++i) {
+                        newTiles[i] = {
+                          ...newTiles[i],
+                          id: i,
+                          pos: [i % width, Math.floor(i / width)],
+                        };
+                      }
                       setTiles(newTiles);
                     }}
                   >
