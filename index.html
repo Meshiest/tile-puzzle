@@ -321,6 +321,26 @@
         function generatePuzzle(w, h) {
           shapeId = 1;
           const grid = generateSolvedGrid(w, h);
+          // Collect all unique edge ids
+          const edgeIds = new Set();
+          for (let y = 0; y < h; ++y) {
+            for (let x = 0; x < w; ++x) {
+              for (const s of grid[y][x].sides) edgeIds.add(s);
+            }
+          }
+          const edgeIdArr = Array.from(edgeIds);
+          shuffle(edgeIdArr);
+          // Map old edge ids to shuffled ones
+          const edgeIdMap = new Map();
+          Array.from(edgeIds).forEach((id, i) =>
+            edgeIdMap.set(id, edgeIdArr[i])
+          );
+          // Remap all tile sides
+          for (let y = 0; y < h; ++y) {
+            for (let x = 0; x < w; ++x) {
+              grid[y][x].sides = grid[y][x].sides.map(s => edgeIdMap.get(s));
+            }
+          }
           let tiles = extractTiles(grid);
           setShapes(randomShapes());
           // Randomize rotation
