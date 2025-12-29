@@ -196,16 +196,17 @@
       };
 
       const BASE_SHAPES = ['triangle', 'square', 'half-circle'];
+      // High-contrast, colorblind-friendly palette
       const BASE_COLORS = [
-        '#e57373',
-        '#64b5f6',
-        '#81c784',
-        '#ffd54f',
-        '#ba68c8',
-        '#ffb74d',
-        '#4dd0e1',
-        '#a1887f',
-        '#f06292',
+        '#d32f2f', // strong red
+        '#1976d2', // strong blue
+        '#388e3c', // strong green
+        '#fbc02d', // strong yellow
+        '#7b1fa2', // strong purple
+        '#f57c00', // strong orange
+        '#0288d1', // cyan/blue
+        '#c62828', // dark red
+        '#2e7d32', // dark green
       ];
 
       function randomShapes() {
@@ -246,76 +247,28 @@
         let shapeId = 1;
         const nextShape = () => shapeId++;
 
-        // Generate solved grid in spiral order
-        function generateSpiralOrder(w, h) {
-          const order = [];
-          if (w < 1 || h < 1) return order;
-          const visited = Array.from({ length: h }, () => Array(w).fill(false));
-          let x = 0,
-            y = 0,
-            dx = 1,
-            dy = 0;
-          let left = 0,
-            right = w - 1,
-            top = 0,
-            bottom = h - 1;
-          while (order.length < w * h) {
-            order.push([x, y]);
-            visited[y][x] = true;
-            let nx = x + dx,
-              ny = y + dy;
-            if (
-              nx < left ||
-              nx > right ||
-              ny < top ||
-              ny > bottom ||
-              (visited[ny] && visited[ny][nx])
-            ) {
-              if (dx === 1 && dy === 0) {
-                dx = 0;
-                dy = 1;
-                top++;
-              } else if (dx === 0 && dy === 1) {
-                dx = -1;
-                dy = 0;
-                right--;
-              } else if (dx === -1 && dy === 0) {
-                dx = 0;
-                dy = -1;
-                bottom--;
-              } else if (dx === 0 && dy === -1) {
-                dx = 1;
-                dy = 0;
-                left++;
-              }
-              nx = x + dx;
-              ny = y + dy;
-            }
-            x = nx;
-            y = ny;
-          }
-          return order;
-        }
-
         // Generate solved grid (spiral fill, with matching sides)
         function generateSolvedGrid(w, h) {
           const grid = Array.from({ length: h }, () => Array(w));
-          const spiral = generateSpiralOrder(w, h);
-          for (const [x, y] of spiral) {
-            const sides = [0, 0, 0, 0];
-            // North
-            if (y > 0 && grid[y - 1][x]) sides[0] = grid[y - 1][x].sides[2];
-            else sides[0] = nextShape();
-            // West
-            if (x > 0 && grid[y][x - 1]) sides[3] = grid[y][x - 1].sides[1];
-            else sides[3] = nextShape();
-            // East
-            if (x < w - 1 && grid[y][x + 1]) sides[1] = grid[y][x + 1].sides[3];
-            else sides[1] = nextShape();
-            // South
-            if (y < h - 1 && grid[y + 1][x]) sides[2] = grid[y + 1][x].sides[0];
-            else sides[2] = nextShape();
-            grid[y][x] = { sides };
+          for (let y = 0; y < h; ++y) {
+            for (let x = 0; x < w; ++x) {
+              const sides = [0, 0, 0, 0];
+              // North
+              if (y > 0 && grid[y - 1][x]) sides[0] = grid[y - 1][x].sides[2];
+              else sides[0] = nextShape();
+              // West
+              if (x > 0 && grid[y][x - 1]) sides[3] = grid[y][x - 1].sides[1];
+              else sides[3] = nextShape();
+              // East
+              if (x < w - 1 && grid[y][x + 1])
+                sides[1] = grid[y][x + 1].sides[3];
+              else sides[1] = nextShape();
+              // South
+              if (y < h - 1 && grid[y + 1][x])
+                sides[2] = grid[y + 1][x].sides[0];
+              else sides[2] = nextShape();
+              grid[y][x] = { sides };
+            }
           }
           return grid;
         }
