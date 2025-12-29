@@ -1,0 +1,713 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"
+    />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <title>Rotating Tile Puzzle</title>
+    <style>
+      body {
+        font-family: system-ui, sans-serif;
+        background: #f4f6fa;
+        margin: 0;
+        padding: 0;
+        color: #222;
+      }
+      .main-container {
+        max-width: 600px;
+        margin: 2em auto;
+        background: #fff;
+        border-radius: 16px;
+        box-shadow: 0 2px 16px #0001;
+        padding: 2em 2em 1.5em 2em;
+      }
+      h1 {
+        font-size: 2em;
+        margin-bottom: 0.2em;
+        letter-spacing: 0.01em;
+        text-align: center;
+      }
+      .tiles-container {
+        user-select: none;
+        width: auto;
+        max-width: clamp(50vw, 100%, 50vh);
+        margin: auto;
+        aspect-ratio: 1;
+        box-sizing: border-box;
+        box-shadow: none;
+        transition: box-shadow 0.3s;
+        background: #f9fafb;
+        border-radius: 12px;
+        padding: 0.5em;
+        gap: 0.25em;
+      }
+      .tiles-container.solved {
+        box-shadow: 0 0 0 8px #2ecc40, 0 0 32px 8px #2ecc4044;
+      }
+      .tile {
+        box-shadow: 0 1px 4px #0002;
+        border: 1px solid #ddd;
+        border-radius: 1em;
+        box-sizing: border-box;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        position: relative;
+        background: #f9f9f9;
+        aspect-ratio: 1;
+      }
+      .tile-north,
+      .tile-south,
+      .tile-east,
+      .tile-west {
+        position: absolute;
+        width: 28px;
+        height: 28px;
+      }
+      .tile-north {
+        top: 0;
+        left: 50%;
+        transform: translateX(-50%);
+      }
+      .tile-west {
+        left: 0;
+        top: 50%;
+        transform: translateY(-50%);
+      }
+      .tile-east {
+        right: 0;
+        top: 50%;
+        transform: translateY(-50%);
+      }
+      .tile-south {
+        bottom: 0;
+        left: 50%;
+        transform: translateX(-50%);
+      }
+      .controls {
+        display: flex;
+        gap: 1em;
+        align-items: flex-end;
+        margin-bottom: 1.5em;
+        flex-wrap: wrap;
+      }
+      .controls .input {
+        display: flex;
+        flex-direction: column;
+      }
+      .controls label {
+        font-size: 0.8em;
+        margin-right: 0.3em;
+        font-weight: bold;
+      }
+      .controls input[type='number'] {
+        width: 3em;
+        font-size: 1em;
+        padding: 0.2em 0.4em;
+        border-radius: 4px;
+        border: 1px solid #bbb;
+        margin-right: 0.5em;
+      }
+      .controls button {
+        font-size: 1em;
+        padding: 0.4em 1.2em;
+        border-radius: 6px;
+        border: none;
+        background: #1976d2;
+        color: #fff;
+        cursor: pointer;
+        margin-right: 0.5em;
+        box-shadow: 0 1px 4px #1976d222;
+        transition: background 0.2s;
+      }
+      .controls button:active {
+        background: #1256a0;
+      }
+      .controls button:disabled {
+        background: #bbb;
+        color: #eee;
+        cursor: not-allowed;
+      }
+      .controls-help {
+        background: #e3f2fd;
+        border-radius: 8px;
+        padding: 1em 1.2em;
+        margin: 1.2em 0 1.5em 0;
+        color: #1565c0;
+        font-size: 1.05em;
+        box-shadow: 0 1px 6px #1976d211;
+      }
+      .controls-help ul {
+        margin: 0.5em 0 0 1.2em;
+        padding: 0;
+      }
+      .controls-help li {
+        margin-bottom: 0.3em;
+        line-height: 1.5;
+      }
+      .controls-help b {
+        color: #1976d2;
+      }
+      .tiles-drag-container {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        margin-bottom: 1em;
+        margin-right: 1em;
+        width: auto;
+        padding: 1em;
+      }
+      .tile-preview {
+        border-color: #28a745;
+        box-shadow: 0 0 10px rgba(40, 167, 69, 0.5);
+        outline: 3px dashed #1976d2;
+        outline-offset: -3px;
+        box-shadow: 0 0 0 4px #1976d233;
+        z-index: 1;
+      }
+    </style>
+  </head>
+  <body>
+    <script type="module">
+      import { h, render } from 'https://esm.sh/preact';
+      import { useState, useEffect, useRef } from 'https://esm.sh/preact/hooks';
+      import htm from 'https://esm.sh/htm';
+
+      const html = htm.bind(h);
+
+      const Input = ({ label, value, onChange, type, ...props }) => {
+        return html`<div class="input">
+          <label>${label}</label>
+          <input
+            type=${type}
+            value=${value}
+            onInput=${e =>
+              onChange(
+                type === 'number' ? Number(e.target.value) : e.target.value
+              )}
+            ...${props}
+          />
+        </div>`;
+      };
+
+      const BASE_SHAPES = ['triangle', 'square', 'half-circle'];
+      const BASE_COLORS = [
+        '#e57373',
+        '#64b5f6',
+        '#81c784',
+        '#ffd54f',
+        '#ba68c8',
+        '#ffb74d',
+        '#4dd0e1',
+        '#a1887f',
+        '#f06292',
+      ];
+
+      function randomShapes() {
+        const shapes = [];
+        const seen = new Set();
+        while (shapes.length < 6) {
+          const shape =
+            BASE_SHAPES[Math.floor(Math.random() * BASE_SHAPES.length)];
+          const color =
+            BASE_COLORS[Math.floor(Math.random() * BASE_COLORS.length)];
+          const key = shape + '|' + color;
+          if (!seen.has(key)) {
+            seen.add(key);
+            shapes.push({ shape, color });
+          }
+        }
+        return shapes;
+      }
+
+      const App = () => {
+        // Prevent touchmove from triggering pull-to-refresh or scrolling on mobile during drag
+        useEffect(() => {
+          const container = document.querySelector('.tiles-container');
+          if (!container) return;
+          const prevent = e => e.preventDefault();
+          container.addEventListener('touchmove', prevent, { passive: false });
+          return () => {
+            container.removeEventListener('touchmove', prevent);
+          };
+        }, []);
+        const [width, setWidth] = useState(3);
+        const [height, setHeight] = useState(3);
+        const [nextWidth, setNextWidth] = useState(3);
+        const [nextHeight, setNextHeight] = useState(3);
+        const [SHAPES, setShapes] = useState(() => randomShapes());
+        const lastTapRef = useRef({});
+
+        let shapeId = 1;
+        const nextShape = () => shapeId++;
+
+        // Generate solved grid in spiral order
+        function generateSpiralOrder(w, h) {
+          const order = [];
+          if (w < 1 || h < 1) return order;
+          const visited = Array.from({ length: h }, () => Array(w).fill(false));
+          let x = 0,
+            y = 0,
+            dx = 1,
+            dy = 0;
+          let left = 0,
+            right = w - 1,
+            top = 0,
+            bottom = h - 1;
+          while (order.length < w * h) {
+            order.push([x, y]);
+            visited[y][x] = true;
+            let nx = x + dx,
+              ny = y + dy;
+            if (
+              nx < left ||
+              nx > right ||
+              ny < top ||
+              ny > bottom ||
+              (visited[ny] && visited[ny][nx])
+            ) {
+              if (dx === 1 && dy === 0) {
+                dx = 0;
+                dy = 1;
+                top++;
+              } else if (dx === 0 && dy === 1) {
+                dx = -1;
+                dy = 0;
+                right--;
+              } else if (dx === -1 && dy === 0) {
+                dx = 0;
+                dy = -1;
+                bottom--;
+              } else if (dx === 0 && dy === -1) {
+                dx = 1;
+                dy = 0;
+                left++;
+              }
+              nx = x + dx;
+              ny = y + dy;
+            }
+            x = nx;
+            y = ny;
+          }
+          return order;
+        }
+
+        // Generate solved grid (spiral fill, with matching sides)
+        function generateSolvedGrid(w, h) {
+          const grid = Array.from({ length: h }, () => Array(w));
+          const spiral = generateSpiralOrder(w, h);
+          for (const [x, y] of spiral) {
+            const sides = [0, 0, 0, 0];
+            // North
+            if (y > 0 && grid[y - 1][x]) sides[0] = grid[y - 1][x].sides[2];
+            else sides[0] = nextShape();
+            // West
+            if (x > 0 && grid[y][x - 1]) sides[3] = grid[y][x - 1].sides[1];
+            else sides[3] = nextShape();
+            // East
+            if (x < w - 1 && grid[y][x + 1]) sides[1] = grid[y][x + 1].sides[3];
+            else sides[1] = nextShape();
+            // South
+            if (y < h - 1 && grid[y + 1][x]) sides[2] = grid[y + 1][x].sides[0];
+            else sides[2] = nextShape();
+            grid[y][x] = { sides };
+          }
+          return grid;
+        }
+
+        // Extract tiles from grid
+        function extractTiles(grid) {
+          const tiles = [];
+          for (let y = 0; y < grid.length; ++y) {
+            for (let x = 0; x < grid[0].length; ++x) {
+              if (!grid[y][x]) continue;
+              const idx = y * grid[0].length + x;
+              tiles.push({
+                sides: [...grid[y][x].sides],
+                pos: [x, y],
+                rotation: 0,
+                id: idx,
+                correctIndex: idx,
+                correctRotation: 0,
+              });
+            }
+          }
+          return tiles;
+        }
+
+        // Rotate a tile (0-3)
+        function rotateTile(tile, rot) {
+          const s = tile.sides;
+          const r = rot % 4;
+          return {
+            ...tile,
+            sides: [
+              s[(4 - r) % 4],
+              s[(5 - r) % 4],
+              s[(6 - r) % 4],
+              s[(7 - r) % 4],
+            ],
+            rotation: r,
+          };
+        }
+
+        // Shuffle array in-place
+        function shuffle(arr) {
+          for (let i = arr.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [arr[i], arr[j]] = [arr[j], arr[i]];
+          }
+        }
+
+        // Generate puzzle
+        function generatePuzzle(w, h) {
+          shapeId = 1;
+          const grid = generateSolvedGrid(w, h);
+          let tiles = extractTiles(grid);
+          setShapes(randomShapes());
+          // Randomize rotation
+          tiles = tiles.map(t => rotateTile(t, Math.floor(Math.random() * 4)));
+          // Shuffle tiles
+          shuffle(tiles);
+          return tiles;
+        }
+
+        // --- UI ---
+        // Shared tile rotation handler
+        function rotateTileHandler(idx) {
+          const newTiles = [...tiles];
+          const tile = newTiles[idx];
+          const newSides = [
+            tile.sides[3],
+            tile.sides[0],
+            tile.sides[1],
+            tile.sides[2],
+          ];
+          newTiles[idx] = {
+            ...tile,
+            sides: newSides,
+            rotation: (tile.rotation + 1) % 4,
+          };
+          setTiles(newTiles);
+        }
+        const [tiles, setTiles] = useState(() => generatePuzzle(width, height));
+        const [dragOverIdx, setDragOverIdx] = useState(null);
+        // Mobile drag preview support
+        useEffect(() => {
+          const container = document.querySelector('.tiles-container');
+          if (!container) return;
+          let lastIdx = null;
+          function handleTouchMove(e) {
+            const touch = e.touches[0];
+            if (!touch) return;
+            const el = document.elementFromPoint(touch.clientX, touch.clientY);
+            if (!el) return;
+            const tileDiv = el.closest('.tile');
+            if (
+              tileDiv &&
+              tileDiv.dataset &&
+              tileDiv.dataset.tileIdx !== undefined
+            ) {
+              const idx = Number(tileDiv.dataset.tileIdx);
+              if (lastIdx !== idx) {
+                setDragOverIdx(idx);
+                lastIdx = idx;
+              }
+            } else {
+              setDragOverIdx(null);
+              lastIdx = null;
+            }
+          }
+          container.addEventListener('touchmove', handleTouchMove, {
+            passive: false,
+          });
+          container.addEventListener('touchend', () => {
+            setDragOverIdx(null);
+            lastIdx = null;
+          });
+          container.addEventListener('touchcancel', () => {
+            setDragOverIdx(null);
+            lastIdx = null;
+          });
+          return () => {
+            container.removeEventListener('touchmove', handleTouchMove);
+            container.removeEventListener('touchend', () => {
+              setDragOverIdx(null);
+              lastIdx = null;
+            });
+            container.removeEventListener('touchcancel', () => {
+              setDragOverIdx(null);
+              lastIdx = null;
+            });
+          };
+        }, [width, height]);
+
+        function getShapeForId(id) {
+          // Deterministic mapping: shape and color by id, allows same color for different sides
+          // No restriction on color repetition; shapes and colors can repeat freely
+          const shape = SHAPES[(id - 1) % SHAPES.length];
+          return shape;
+        }
+
+        // Shape component for SVG rendering
+        const Shape = ({ side, rotation = 0 }) => {
+          if (!side) return null;
+          const shape = getShapeForId(side);
+          if (shape.shape === 'triangle') {
+            // Fill entire SVG, touching all borders
+            return html`<svg
+              width="28"
+              height="28"
+              style="transform:rotate(${rotation}deg)"
+            >
+              <polygon points="14,28 28,0 0,0" fill="${shape.color}" />
+            </svg>`;
+          } else if (shape.shape === 'square') {
+            // Fill entire SVG, touching all borders
+            return html`<svg
+              width="28"
+              height="28"
+              style="transform:rotate(${rotation}deg)"
+            >
+              <rect x="0" y="0" width="28" height="28" fill="${shape.color}" />
+            </svg>`;
+          } else if (shape.shape === 'half-circle') {
+            // Half-circle, arc and flat edge both touch border, shifted toward the edge
+            // Shift the half-circle 4px toward the top (for north), so it hugs the border more
+            return html`<svg
+              width="28"
+              height="28"
+              style="transform:rotate(${rotation}deg)"
+            >
+              <g transform="translate(0,-14)">
+                <path d="M0,14 A14,14 0 0,0 28,14 Z" fill="${shape.color}" />
+              </g>
+            </svg>`;
+          }
+          return null;
+        };
+
+        // For display: shape id or blank
+        const sideLabel = s => (s ? s : '');
+
+        // Check if the puzzle is solved
+        function isSolved() {
+          // Each tile must be in its correct position and rotation
+          for (let i = 0; i < tiles.length; ++i) {
+            const tile = tiles[i];
+            if (i !== tile.correctIndex) return false;
+            if (tile.rotation % 4 !== tile.correctRotation % 4) return false;
+          }
+          return true;
+        }
+
+        const solved = isSolved();
+        return html`
+          <h1>Rotate/Swap Tile Puzzle</h1>
+          <div class="controls">
+            <${Input}
+              label="Width"
+              type="number"
+              value=${nextWidth}
+              onChange=${setNextWidth}
+              min="2"
+              max="6"
+            />
+            <${Input}
+              label="Height"
+              type="number"
+              value=${nextHeight}
+              onChange=${setNextHeight}
+              min="2"
+              max="6"
+            />
+            <button
+              onClick=${() => {
+                setWidth(nextWidth);
+                setHeight(nextHeight);
+                setTiles(generatePuzzle(nextWidth, nextHeight));
+              }}
+            >
+              Regenerate
+            </button>
+
+            <button
+              style="margin-left:0.5em"
+              onClick=${() => {
+                // Find the first unsolved tile (wrong position or rotation)
+                const firstUnsolvedIdx = tiles.findIndex(
+                  (tile, i) =>
+                    i !== tile.correctIndex ||
+                    tile.rotation % 4 !== tile.correctRotation % 4
+                );
+                if (firstUnsolvedIdx === -1) return; // already solved
+                const correctIdx = tiles[firstUnsolvedIdx].correctIndex;
+                if (firstUnsolvedIdx !== correctIdx) {
+                  // Swap the tile into its correct position
+                  const newTiles = [...tiles];
+                  [newTiles[firstUnsolvedIdx], newTiles[correctIdx]] = [
+                    newTiles[correctIdx],
+                    newTiles[firstUnsolvedIdx],
+                  ];
+                  // Update id and pos for all tiles
+                  for (let i = 0; i < newTiles.length; ++i) {
+                    newTiles[i] = {
+                      ...newTiles[i],
+                      id: i,
+                      pos: [i % width, Math.floor(i / width)],
+                    };
+                  }
+                  setTiles(newTiles);
+                } else {
+                  // Tile is in correct position but wrong rotation
+                  const newTiles = [...tiles];
+                  let tile = newTiles[firstUnsolvedIdx];
+                  let rotSteps = (tile.correctRotation - tile.rotation + 4) % 4;
+                  for (let i = 0; i < rotSteps; ++i) {
+                    // Rotate tile 90° clockwise: shift sides array right by 1
+                    tile = {
+                      ...tile,
+                      sides: [
+                        tile.sides[3],
+                        tile.sides[0],
+                        tile.sides[1],
+                        tile.sides[2],
+                      ],
+                      rotation: (tile.rotation + 1) % 4,
+                    };
+                  }
+                  newTiles[firstUnsolvedIdx] = tile;
+                  setTiles(newTiles);
+                }
+              }}
+            >
+              Solve
+            </button>
+          </div>
+          <div className="tiles-drag-container">
+            <div
+              className=${'tiles-container' + (solved ? ' solved' : '')}
+              style=${{
+                display: 'grid',
+                gridTemplateColumns: `repeat(${width}, 1fr)`,
+                gridTemplateRows: `repeat(${height}, 1fr)`,
+                width: '100%',
+                maxWidth: '100vw',
+                userSelect: 'none',
+              }}
+            >
+              ${tiles.map(
+                (tile, idx) => html`
+                  <div
+                    className=${'tile' +
+                    (dragOverIdx === idx ? ' tile-preview' : '')}
+                    draggable="true"
+                    data-tile-idx="${idx}"
+                    onDblClick=${e => {
+                      e.stopPropagation();
+                      rotateTileHandler(idx);
+                    }}
+                    onDragStart=${e => {
+                      e.dataTransfer.effectAllowed = 'move';
+                      e.dataTransfer.setData('text/plain', idx);
+                    }}
+                    onDragOver=${e => {
+                      e.preventDefault();
+                      setDragOverIdx(idx);
+                    }}
+                    onDragLeave=${e => {
+                      setDragOverIdx(null);
+                    }}
+                    onDrop=${e => {
+                      e.preventDefault();
+                      setDragOverIdx(null);
+                      const fromIdx = Number(
+                        e.dataTransfer.getData('text/plain')
+                      );
+                      if (fromIdx === idx) return;
+                      const newTiles = [...tiles];
+                      // Swap tiles
+                      [newTiles[fromIdx], newTiles[idx]] = [
+                        newTiles[idx],
+                        newTiles[fromIdx],
+                      ];
+                      setTiles(newTiles);
+                    }}
+                    onTouchStart=${e => {
+                      // Store the dragged tile index in a ref for mobile
+                      window.__dragTileIdx = idx;
+                    }}
+                    onTouchEnd=${e => {
+                      const now = Date.now();
+                      const last = lastTapRef.current[idx] || 0;
+                      if (now - last < 350) {
+                        e.stopPropagation();
+                        rotateTileHandler(idx);
+                        lastTapRef.current[idx] = 0;
+                      } else {
+                        lastTapRef.current[idx] = now;
+                      }
+
+                      const fromIdx = window.__dragTileIdx;
+                      const toIdx = dragOverIdx;
+                      setDragOverIdx(null);
+                      window.__dragTileIdx = null;
+                      if (
+                        typeof fromIdx !== 'number' ||
+                        typeof toIdx !== 'number' ||
+                        fromIdx === toIdx
+                      )
+                        return;
+                      const newTiles = [...tiles];
+                      // Swap tiles
+                      [newTiles[fromIdx], newTiles[toIdx]] = [
+                        newTiles[toIdx],
+                        newTiles[fromIdx],
+                      ];
+                      setTiles(newTiles);
+                    }}
+                  >
+                    <div className="tile-north">
+                      <${Shape} side=${tile.sides[0]} rotation=${0} />
+                    </div>
+                    <span className="tile-west">
+                      <${Shape} side=${tile.sides[3]} rotation=${270} />
+                    </span>
+                    <div className="tile-east">
+                      <${Shape} side=${tile.sides[1]} rotation=${90} />
+                    </div>
+                    <div className="tile-south">
+                      <${Shape} side=${tile.sides[2]} rotation=${180} />
+                    </div>
+                  </div>
+                `
+              )}
+            </div>
+          </div>
+          <div className="controls-help">
+            <strong>Controls</strong>
+            <ul>
+              <li>
+                <b>Drag & drop</b> or <b>touch & drag</b> tiles to swap them.
+              </li>
+              <li>
+                <b>Double-click</b> or <b>double-tap</b> a tile to rotate it 90°
+                clockwise.
+              </li>
+              <li>
+                Arrange all tiles so all sides match and the border is green!
+              </li>
+            </ul>
+          </div>
+        `;
+      };
+
+      render(html`<div class="main-container"><${App} /></div>`, document.body);
+    </script>
+  </body>
+</html>
